@@ -65,7 +65,7 @@ class Muse {
     this.EEG4_CHARACTERISTIC = '273e0006-4c4d-454d-96be-f03bac821358';  // TP10
     this.EEG5_CHARACTERISTIC = '273e0007-4c4d-454d-96be-f03bac821358';  // AUX
     this.state = 0;
-    this.device = null;
+    this.dev = null;
     this.controlChar = null;
     this.batteryLevel = null;
     this.info = { };
@@ -123,7 +123,7 @@ class Muse {
   // -------------------------------------
   batteryData (event) {
     var data = event.target.value;
-    var data = data.buffer ? data: new DataView(data);
+    data = data.buffer ? data: new DataView(data);
     this.batteryLevel = data.getUint16(2) / 512;
   }
   motionData(dv,scale,ofs) {
@@ -136,7 +136,7 @@ class Muse {
   accelerometerData (event) {
     var scale = 0.0000610352;
     var data = event.target.value;
-    var data = data.buffer ? data: new DataView(data);
+    data = data.buffer ? data: new DataView(data);
     var ofs = 2;
     for (var i=0;i<3;i++) {
        var vals = this.motionData(data,scale,ofs);
@@ -149,7 +149,7 @@ class Muse {
   gyroscopeData (event) {
     var scale = 0.0074768;
     var data = event.target.value;
-    var data = data.buffer ? data: new DataView(data);
+    data = data.buffer ? data: new DataView(data);
     var ofs = 2;
     for (var i=0;i<3;i++) {
        var vals = this.motionData(data,scale,ofs);
@@ -161,7 +161,7 @@ class Muse {
   }
   controlData (event) {
     var data = event.target.value;
-    var data = data.buffer ? data: new DataView(data);
+    data = data.buffer ? data: new DataView(data);
     var buf = new Uint8Array(data.buffer);
     var str = this.decodeInfo(buf);
     for (var i = 0; i<str.length;i++) {
@@ -179,7 +179,7 @@ class Muse {
   }
   eegData (n,event) {
     var data = event.target.value;
-    var data = data.buffer ? data: new DataView(data);
+    data = data.buffer ? data: new DataView(data);
     var samples = this.decodeUnsigned12BitData(new Uint8Array(data.buffer).subarray(2));
     samples = samples.map(function (x) { return 0.48828125 * (x - 0x800); });
     for (var i=0;i<samples.length;i++) {
@@ -188,7 +188,7 @@ class Muse {
   }
   ppgData(n,event) {
     var data = event.target.value;
-    var data = data.buffer ? data: new DataView(data);
+    data = data.buffer ? data: new DataView(data);
     var samples = this.decodeUnsigned24BitData(new Uint8Array(data.buffer).subarray(2));
     for (var i=0;i<samples.length;i++) { 
       this.ppg[n].write(samples[i]); 
@@ -196,7 +196,7 @@ class Muse {
   }
   // -------------------------------------
   async sendCommand(cmd) {
-    await this.controlChar.writeValue(this.encodeCommand(cmd));
+    await this.controlChar["writeValue"](this.encodeCommand(cmd));
   }
   async pause () {
     await this.sendCommand('h');
@@ -214,44 +214,42 @@ class Muse {
     await this.resume();
   }
   disconnect() {
-    if (this.device!=null) {
-      this.device.gatt.disconnect();
-      this.device = null;
-    }
+    if (this.dev) this.dev["gatt"]["disconnect"]();
+    this.dev = null;
     this.state = 0;
   }
   onDisconnected() {
-    this.device = null;
+    this.dev = null;
     this.state=0;
   }
   async connectChar (service,cid,hook) {
-    var c = await service.getCharacteristic(cid);
-    c.oncharacteristicvaluechanged = hook;
-    c.startNotifications();
+    var c = await service["getCharacteristic"](cid);
+    c["oncharacteristicvaluechanged"] = hook;
+    c["startNotifications"]();
     return c;
   }
   async connect() {
-    if (this.device!=null||this.state!=0) { return; }
+    if (this.dev||this.state!=0) { return; }
     this.state=1;
     try {
-      this.device = await navigator.bluetooth.requestDevice({
-        filters: [{services: [this.SERVICE]}],
+      this.dev = await navigator["bluetooth"]["requestDevice"]({
+        "filters": [{ "services": [this.SERVICE]}],
       });
     } catch (error) { 
-      this.device= null;
+      this.dev= null;
       this.state = 0;
       return;
     }
     try {
-      var gatt = await this.device.gatt.connect();
+      var gatt = await this.dev["gatt"]["connect"]();
     } catch (error) {
-      this.device= null;
+      this.dev= null;
       this.state = 0;
       return;
     }
-    var service = await gatt.getPrimaryService(this.SERVICE);
+    var service = await gatt["getPrimaryService"](this.SERVICE);
     var that = this;
-    this.device.addEventListener('gattserverdisconnected',
+    this.dev.addEventListener('gattserverdisconnected',
       function () { that.onDisconnected(); } );
     this.controlChar = await this.connectChar(service,this.CONTROL_CHARACTERISTIC,
       function (event) { that.controlData(event); } );
